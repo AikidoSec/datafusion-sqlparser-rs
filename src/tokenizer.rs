@@ -43,7 +43,7 @@ use sqlparser_derive::{Visit, VisitMut};
 use crate::ast::DollarQuotedString;
 use crate::dialect::Dialect;
 use crate::dialect::{
-    BigQueryDialect, DuckDbDialect, GenericDialect, MySqlDialect, PostgreSqlDialect,
+    BigQueryDialect, DuckDbDialect, GenericDialect, MySqlDialect, PostgreSqlDialect, SQLiteDialect,
     SnowflakeDialect,
 };
 use crate::keywords::{Keyword, ALL_KEYWORDS, ALL_KEYWORDS_INDEX};
@@ -1280,6 +1280,12 @@ impl<'a> Tokenizer<'a> {
 
         if let Some('$') = chars.peek() {
             chars.next();
+
+            // Treat `$$` as a placeholder for SQLite
+            // See https://www.sqlite.org/lang_expr.html#varparam
+            if self.dialect.is::<SQLiteDialect>() {
+                return Ok(Token::Placeholder("$$".to_string()));
+            }
 
             let mut is_terminated = false;
             let mut prev: Option<char> = None;
