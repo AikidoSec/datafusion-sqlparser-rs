@@ -43,7 +43,7 @@ use sqlparser_derive::{Visit, VisitMut};
 use crate::ast::DollarQuotedString;
 use crate::dialect::Dialect;
 use crate::dialect::{
-    BigQueryDialect, DuckDbDialect, GenericDialect, MySqlDialect, PostgreSqlDialect, SQLiteDialect,
+    BigQueryDialect, DuckDbDialect, GenericDialect, MySqlDialect, PostgreSqlDialect,
     SnowflakeDialect,
 };
 use crate::keywords::{Keyword, ALL_KEYWORDS, ALL_KEYWORDS_INDEX};
@@ -1278,14 +1278,10 @@ impl<'a> Tokenizer<'a> {
 
         chars.next();
 
-        if let Some('$') = chars.peek() {
+        // Check if the second character is a dollar sign
+        let next_is_dollar = matches!(chars.peek(), Some('$'));
+        if next_is_dollar && self.dialect.supports_dollar_quoted_string() {
             chars.next();
-
-            // Treat `$$` as a placeholder for SQLite
-            // See https://www.sqlite.org/lang_expr.html#varparam
-            if self.dialect.is::<SQLiteDialect>() {
-                return Ok(Token::Placeholder("$$".to_string()));
-            }
 
             let mut is_terminated = false;
             let mut prev: Option<char> = None;
@@ -1318,10 +1314,13 @@ impl<'a> Tokenizer<'a> {
             };
         } else {
             value.push_str(&peeking_take_while(chars, |ch| {
-                ch.is_alphanumeric() || ch == '_'
+                ch.is_alphanumeric()
+                    || ch == '_'
+                    || matches!(ch, '$' if !self.dialect.supports_dollar_quoted_string())
             }));
 
-            if let Some('$') = chars.peek() {
+            let next_is_dollar = matches!(chars.peek(), Some('$'));
+            if next_is_dollar && self.dialect.supports_dollar_quoted_string() {
                 chars.next();
 
                 'searching_for_end: loop {
@@ -1891,7 +1890,7 @@ fn take_char_from_hex_digits(
 mod tests {
     use super::*;
     use crate::dialect::{
-        BigQueryDialect, ClickHouseDialect, HiveDialect, MsSqlDialect, MySqlDialect,
+        BigQueryDialect, ClickHouseDialect, HiveDialect, MsSqlDialect, MySqlDialect, SQLiteDialect,
     };
     use core::fmt::Debug;
 
@@ -2324,6 +2323,30 @@ mod tests {
                     column: 91
                 }
             })
+        );
+    }
+
+    #[test]
+    fn tokenize_dollar_placeholder_sqlite() {
+        let sql = String::from("SELECT $$, $$ABC$$, $ABC$, $ABC");
+        let dialect = SQLiteDialect {};
+        let tokens = Tokenizer::new(&dialect, &sql).tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::make_keyword("SELECT"),
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$$ABC$$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$ABC$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$ABC".into()),
+            ]
         );
     }
 

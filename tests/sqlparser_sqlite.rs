@@ -569,6 +569,7 @@ fn test_dollar_identifier_as_placeholder() {
         _ => unreachable!(),
     }
 
+    // $$ is a valid placeholder in SQLite
     match sqlite().verified_expr("id = $$") {
         Expr::BinaryOp { op, left, right } => {
             assert_eq!(op, BinaryOperator::Eq);
