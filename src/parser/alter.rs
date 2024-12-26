@@ -26,7 +26,7 @@ use crate::{
     tokenizer::Token,
 };
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     pub fn parse_alter_role(&mut self) -> Result<Statement, ParserError> {
         if dialect_of!(self is PostgreSqlDialect) {
             return self.parse_pg_alter_role();
@@ -192,7 +192,7 @@ impl<'a> Parser<'a> {
             let _ = self.parse_keyword(Keyword::WITH);
             // option
             let mut options = vec![];
-            while let Some(opt) = self.maybe_parse(|parser| parser.parse_pg_role_option()) {
+            while let Some(opt) = self.maybe_parse(|parser| parser.parse_pg_role_option())? {
                 options.push(opt);
             }
             // check option

@@ -21,6 +21,8 @@
 #[macro_use]
 mod test_utils;
 
+use helpers::attached_token::AttachedToken;
+use sqlparser::tokenizer::Span;
 use test_utils::*;
 
 use sqlparser::ast::Expr::{BinaryOp, Identifier, MapAccess};
@@ -39,11 +41,14 @@ fn parse_map_access_expr() {
     assert_eq!(
         Select {
             distinct: None,
+            select_token: AttachedToken::empty(),
             top: None,
+            top_before_distinct: false,
             projection: vec![UnnamedExpr(MapAccess {
                 column: Box::new(Identifier(Ident {
                     value: "string_values".to_string(),
                     quote_style: None,
+                    span: Span::empty(),
                 })),
                 keys: vec![MapAccessKey {
                     key: call(
@@ -66,6 +71,7 @@ fn parse_map_access_expr() {
                     version: None,
                     partitions: vec![],
                     with_ordinality: false,
+                    json_path: None,
                 },
                 joins: vec![],
             }],
@@ -171,6 +177,7 @@ fn parse_delimited_identifiers() {
             version,
             with_ordinality: _,
             partitions: _,
+            json_path: _,
         } => {
             assert_eq!(vec![Ident::with_quote('"', "a table")], name.0);
             assert_eq!(Ident::with_quote('"', "alias"), alias.unwrap().name);
@@ -192,6 +199,7 @@ fn parse_delimited_identifiers() {
     assert_eq!(
         &Expr::Function(Function {
             name: ObjectName(vec![Ident::with_quote('"', "myfun")]),
+            uses_odbc_syntax: false,
             parameters: FunctionArguments::None,
             args: FunctionArguments::List(FunctionArgumentList {
                 duplicate_treatment: None,
@@ -814,6 +822,7 @@ fn parse_create_table_with_variant_default_expressions() {
                             name: None,
                             option: ColumnOption::Materialized(Expr::Function(Function {
                                 name: ObjectName(vec![Ident::new("now")]),
+                                uses_odbc_syntax: false,
                                 args: FunctionArguments::List(FunctionArgumentList {
                                     args: vec![],
                                     duplicate_treatment: None,
@@ -835,6 +844,7 @@ fn parse_create_table_with_variant_default_expressions() {
                             name: None,
                             option: ColumnOption::Ephemeral(Some(Expr::Function(Function {
                                 name: ObjectName(vec![Ident::new("now")]),
+                                uses_odbc_syntax: false,
                                 args: FunctionArguments::List(FunctionArgumentList {
                                     args: vec![],
                                     duplicate_treatment: None,
@@ -865,6 +875,7 @@ fn parse_create_table_with_variant_default_expressions() {
                             name: None,
                             option: ColumnOption::Alias(Expr::Function(Function {
                                 name: ObjectName(vec![Ident::new("toString")]),
+                                uses_odbc_syntax: false,
                                 args: FunctionArguments::List(FunctionArgumentList {
                                     args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(
                                         Identifier(Ident::new("c"))
@@ -900,7 +911,8 @@ fn parse_create_view_with_fields_data_types() {
                         data_type: Some(DataType::Custom(
                             ObjectName(vec![Ident {
                                 value: "int".into(),
-                                quote_style: Some('"')
+                                quote_style: Some('"'),
+                                span: Span::empty(),
                             }]),
                             vec![]
                         )),
@@ -911,7 +923,8 @@ fn parse_create_view_with_fields_data_types() {
                         data_type: Some(DataType::Custom(
                             ObjectName(vec![Ident {
                                 value: "String".into(),
-                                quote_style: Some('"')
+                                quote_style: Some('"'),
+                                span: Span::empty(),
                             }]),
                             vec![]
                         )),
@@ -1613,15 +1626,12 @@ fn parse_explain_table() {
 }
 
 fn clickhouse() -> TestedDialects {
-    TestedDialects {
-        dialects: vec![Box::new(ClickHouseDialect {})],
-        options: None,
-    }
+    TestedDialects::new(vec![Box::new(ClickHouseDialect {})])
 }
 
 fn clickhouse_and_generic() -> TestedDialects {
-    TestedDialects {
-        dialects: vec![Box::new(ClickHouseDialect {}), Box::new(GenericDialect {})],
-        options: None,
-    }
+    TestedDialects::new(vec![
+        Box::new(ClickHouseDialect {}),
+        Box::new(GenericDialect {}),
+    ])
 }

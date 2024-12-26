@@ -49,7 +49,7 @@ pub use self::postgresql::PostgreSqlDialect;
 pub use self::redshift::RedshiftSqlDialect;
 pub use self::snowflake::SnowflakeDialect;
 pub use self::sqlite::SQLiteDialect;
-use crate::ast::{Expr, Statement};
+use crate::ast::{ColumnOption, Expr, Statement};
 pub use crate::keywords;
 use crate::keywords::Keyword;
 use crate::parser::{Parser, ParserError};
@@ -231,8 +231,31 @@ pub trait Dialect: Debug + Any {
         false
     }
 
-    /// Returns true if the dialect supports named arguments of the form FUN(a = '1', b = '2').
+    /// Returns true if the dialect supports named arguments of the form `FUN(a = '1', b = '2')`.
     fn supports_named_fn_args_with_eq_operator(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports named arguments of the form `FUN(a : '1', b : '2')`.
+    fn supports_named_fn_args_with_colon_operator(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports named arguments of the form `FUN(a := '1', b := '2')`.
+    fn supports_named_fn_args_with_assignment_operator(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports named arguments of the form `FUN(a => '1', b => '2')`.
+    fn supports_named_fn_args_with_rarrow_operator(&self) -> bool {
+        true
+    }
+
+    /// Returns true if dialect supports argument name as arbitrary expression.
+    /// e.g. `FUN(LOWER('a'):'1',  b:'2')`
+    /// Such function arguments are represented in the AST by the `FunctionArg::ExprNamed` variant,
+    /// otherwise use the `FunctionArg::Named` variant (compatible reason).
+    fn supports_named_fn_args_with_expr_name(&self) -> bool {
         false
     }
 
@@ -276,6 +299,15 @@ pub trait Dialect: Debug + Any {
     /// SELECT transform(array(1, 2, 3), x -> x + 1); -- returns [2,3,4]
     /// ```
     fn supports_lambda_functions(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports method calls, for example:
+    ///
+    /// ```sql
+    /// SELECT (SELECT ',' + name FROM sys.objects  FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)')
+    /// ```
+    fn supports_methods(&self) -> bool {
         false
     }
 
@@ -331,6 +363,26 @@ pub trait Dialect: Debug + Any {
     /// Does the dialect support trailing commas in the projection list?
     fn supports_projection_trailing_commas(&self) -> bool {
         self.supports_trailing_commas()
+    }
+
+    /// Returns true if the dialect supports double dot notation for object names
+    ///
+    /// Example
+    /// ```sql
+    /// SELECT * FROM db_name..table_name
+    /// ```
+    fn supports_object_name_double_dot_notation(&self) -> bool {
+        false
+    }
+
+    /// Return true if the dialect supports the STRUCT literal
+    ///
+    /// Example
+    /// ```sql
+    /// SELECT STRUCT(1 as one, 'foo' as foo, false)
+    /// ```
+    fn supports_struct_literal(&self) -> bool {
+        false
     }
 
     /// Dialect-specific infix parser override
@@ -478,6 +530,19 @@ pub trait Dialect: Debug + Any {
         None
     }
 
+    /// Dialect-specific column option parser override
+    ///
+    /// This method is called to parse the next column option.
+    ///
+    /// If `None` is returned, falls back to the default behavior.
+    fn parse_column_option(
+        &self,
+        _parser: &mut Parser,
+    ) -> Result<Option<Result<Option<ColumnOption>, ParserError>>, ParserError> {
+        // return None to fall back to the default behavior
+        Ok(None)
+    }
+
     /// Decide the lexical Precedence of operators.
     ///
     /// Uses (APPROXIMATELY) <https://www.postgresql.org/docs/7.0/operators.htm#AEN2026> as a reference
@@ -560,6 +625,87 @@ pub trait Dialect: Debug + Any {
 
     fn supports_asc_desc_in_column_definition(&self) -> bool {
         false
+    }
+
+    /// Returns true if the dialect supports `a!` expressions
+    fn supports_factorial_operator(&self) -> bool {
+        false
+    }
+
+    /// Returns true if this dialect supports treating the equals operator `=` within a `SelectItem`
+    /// as an alias assignment operator, rather than a boolean expression.
+    /// For example: the following statements are equivalent for such a dialect:
+    /// ```sql
+    ///  SELECT col_alias = col FROM tbl;
+    ///  SELECT col_alias AS col FROM tbl;
+    /// ```
+    fn supports_eq_alias_assignment(&self) -> bool {
+        false
+    }
+
+    /// Returns true if this dialect supports the `TRY_CONVERT` function
+    fn supports_try_convert(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports `!a` syntax for boolean `NOT` expressions.
+    fn supports_bang_not_operator(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports the `LISTEN`, `UNLISTEN` and `NOTIFY` statements
+    fn supports_listen_notify(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports the `LOAD DATA` statement
+    fn supports_load_data(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports the `LOAD extension` statement
+    fn supports_load_extension(&self) -> bool {
+        false
+    }
+
+    /// Returns true if this dialect expects the `TOP` option
+    /// before the `ALL`/`DISTINCT` options in a `SELECT` statement.
+    fn supports_top_before_distinct(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports boolean literals (`true` and `false`).
+    /// For example, in MSSQL these are treated as identifiers rather than boolean literals.
+    fn supports_boolean_literals(&self) -> bool {
+        true
+    }
+
+    /// Returns true if this dialect supports the `LIKE 'pattern'` option in
+    /// a `SHOW` statement before the `IN` option
+    fn supports_show_like_before_in(&self) -> bool {
+        false
+    }
+
+    /// Returns true if this dialect supports the `COMMENT` statement
+    fn supports_comment_on(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports the `CREATE TABLE SELECT` statement
+    fn supports_create_table_select(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the dialect supports PartiQL for querying semi-structured data
+    /// <https://partiql.org/index.html>
+    fn supports_partiql(&self) -> bool {
+        false
+    }
+
+    /// Returns true if the specified keyword is reserved and cannot be
+    /// used as an identifier without special handling like quoting.
+    fn is_reserved_for_identifier(&self, kw: Keyword) -> bool {
+        keywords::RESERVED_FOR_IDENTIFIER.contains(&kw)
     }
 }
 

@@ -44,6 +44,7 @@ use pretty_assertions::assert_eq;
 pub struct TestedDialects {
     pub dialects: Vec<Box<dyn Dialect>>,
     pub options: Option<ParserOptions>,
+    pub recursion_limit: Option<usize>,
 }
 
 impl TestedDialects {
@@ -52,16 +53,38 @@ impl TestedDialects {
         Self {
             dialects,
             options: None,
+            recursion_limit: None,
         }
+    }
+
+    pub fn new_with_options(dialects: Vec<Box<dyn Dialect>>, options: ParserOptions) -> Self {
+        Self {
+            dialects,
+            options: Some(options),
+            recursion_limit: None,
+        }
+    }
+
+    pub fn with_recursion_limit(mut self, recursion_limit: usize) -> Self {
+        self.recursion_limit = Some(recursion_limit);
+        self
     }
 
     fn new_parser<'a>(&self, dialect: &'a dyn Dialect) -> Parser<'a> {
         let parser = Parser::new(dialect);
-        if let Some(options) = &self.options {
+        let parser = if let Some(options) = &self.options {
             parser.with_options(options.clone())
         } else {
             parser
-        }
+        };
+
+        let parser = if let Some(recursion_limit) = &self.recursion_limit {
+            parser.with_recursion_limit(*recursion_limit)
+        } else {
+            parser
+        };
+
+        parser
     }
 
     /// Run the given function for all of `self.dialects`, assert that they
@@ -322,6 +345,7 @@ pub fn table(name: impl Into<String>) -> TableFactor {
         version: None,
         partitions: vec![],
         with_ordinality: false,
+        json_path: None,
     }
 }
 
@@ -337,6 +361,7 @@ pub fn table_with_alias(name: impl Into<String>, alias: impl Into<String>) -> Ta
         version: None,
         partitions: vec![],
         with_ordinality: false,
+        json_path: None,
     }
 }
 
@@ -351,6 +376,7 @@ pub fn join(relation: TableFactor) -> Join {
 pub fn call(function: &str, args: impl IntoIterator<Item = Expr>) -> Expr {
     Expr::Function(Function {
         name: ObjectName(vec![Ident::new(function)]),
+        uses_odbc_syntax: false,
         parameters: FunctionArguments::None,
         args: FunctionArguments::List(FunctionArgumentList {
             duplicate_treatment: None,

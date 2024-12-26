@@ -68,4 +68,15 @@ impl Dialect for RedshiftSqlDialect {
     fn supports_connect_by(&self) -> bool {
         true
     }
+
+    /// Redshift expects the `TOP` option before the `ALL/DISTINCT` option:
+    /// <https://docs.aws.amazon.com/redshift/latest/dg/r_SELECT_list.html#r_SELECT_list-parameters>
+    fn supports_top_before_distinct(&self) -> bool {
+        true
+    }
+
+    /// Redshift supports PartiQL: <https://docs.aws.amazon.com/redshift/latest/dg/super-overview.html>
+    fn supports_partiql(&self) -> bool {
+        true
+    }
 }
