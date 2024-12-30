@@ -504,7 +504,7 @@ struct State<'a> {
     pub col: u64,
 }
 
-impl<'a> State<'a> {
+impl State<'_> {
     /// return the next character and advance the stream
     pub fn next(&mut self) -> Option<char> {
         match self.peekable.next() {
@@ -1278,7 +1278,8 @@ impl<'a> Tokenizer<'a> {
 
         chars.next();
 
-        if let Some('$') = chars.peek() {
+        // If the dialect does not support dollar-quoted strings, then `$$` is rather a placeholder.
+        if matches!(chars.peek(), Some('$')) && !self.dialect.supports_dollar_placeholder() {
             chars.next();
 
             let mut is_terminated = false;
@@ -1312,10 +1313,14 @@ impl<'a> Tokenizer<'a> {
             };
         } else {
             value.push_str(&peeking_take_while(chars, |ch| {
-                ch.is_alphanumeric() || ch == '_'
+                ch.is_alphanumeric()
+                    || ch == '_'
+                    // Allow $ as a placeholder character if the dialect supports it
+                    || matches!(ch, '$' if self.dialect.supports_dollar_placeholder())
             }));
 
-            if let Some('$') = chars.peek() {
+            // If the dialect does not support dollar-quoted strings, don't look for the end delimiter.
+            if matches!(chars.peek(), Some('$')) && !self.dialect.supports_dollar_placeholder() {
                 chars.next();
 
                 'searching_for_end: loop {
@@ -1885,7 +1890,7 @@ fn take_char_from_hex_digits(
 mod tests {
     use super::*;
     use crate::dialect::{
-        BigQueryDialect, ClickHouseDialect, HiveDialect, MsSqlDialect, MySqlDialect,
+        BigQueryDialect, ClickHouseDialect, HiveDialect, MsSqlDialect, MySqlDialect, SQLiteDialect,
     };
     use core::fmt::Debug;
 
@@ -2318,6 +2323,30 @@ mod tests {
                     column: 91
                 }
             })
+        );
+    }
+
+    #[test]
+    fn tokenize_dollar_placeholder() {
+        let sql = String::from("SELECT $$, $$ABC$$, $ABC$, $ABC");
+        let dialect = SQLiteDialect {};
+        let tokens = Tokenizer::new(&dialect, &sql).tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::make_keyword("SELECT"),
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$$ABC$$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$ABC$".into()),
+                Token::Comma,
+                Token::Whitespace(Whitespace::Space),
+                Token::Placeholder("$ABC".into()),
+            ]
         );
     }
 
