@@ -567,6 +567,12 @@ pub trait Dialect: Debug + Any {
     fn supports_asc_desc_in_column_definition(&self) -> bool {
         false
     }
+
+    /// Returns true if the dialect supports nested comments
+    /// e.g. `/* /* nested */ */`
+    fn supports_nested_comments(&self) -> bool {
+        false
+    }
 }
 
 /// This represents the operators for which precedence must be defined
