@@ -68,4 +68,8 @@ impl Dialect for RedshiftSqlDialect {
     fn supports_connect_by(&self) -> bool {
         true
     }
+
+    fn supports_string_escape_constant(&self) -> bool {
+        true
+    }
 }
