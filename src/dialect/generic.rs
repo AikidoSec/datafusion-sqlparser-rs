@@ -111,4 +111,8 @@ impl Dialect for GenericDialect {
     fn supports_nested_comments(&self) -> bool {
         true
     }
+
+    fn supports_string_escape_constant(&self) -> bool {
+        true
+    }
 }
