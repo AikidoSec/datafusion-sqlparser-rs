@@ -61,7 +61,7 @@ jobs:
       with:
         rust-version: ${{ matrix.rust }}
     - name: Install Tarpaulin
-      uses: actions-rs/install@v0.1
+      uses: actions-rs/install@9da1d2adcfe5e7c16992e8242ca33a56b6d9b101 # v0.1
       with:
         crate: cargo-tarpaulin
         version: 0.14.2
@@ -87,7 +87,7 @@ jobs:
     - name: Coverage
       run: cargo tarpaulin -o Lcov --output-dir ./coverage
     - name: Coveralls
-      uses: coverallsapp/github-action@master
+      uses: coverallsapp/github-action@09b709cf6a16e30b0808ba050c7a6e8a5ef13f8d # master
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
