@@ -79,7 +79,7 @@ jobs:
       with:
         rust-version: stable
     - name: Install Tarpaulin
-      uses: actions-rs/install@v0.1
+      uses: actions-rs/install@9da1d2adcfe5e7c16992e8242ca33a56b6d9b101 # v0.1
       with:
         crate: cargo-tarpaulin
         version: 0.14.2
